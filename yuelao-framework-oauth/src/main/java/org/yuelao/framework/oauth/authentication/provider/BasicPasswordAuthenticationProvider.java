@@ -1,45 +1,48 @@
 package org.yuelao.framework.oauth.authentication.provider;
 
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.authority.AuthorityUtils;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.yuelao.framework.oauth.authentication.token.auth.BasicPasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.util.ObjectUtils;
+import org.yuelao.framework.oauth.authentication.BasicPasswordAuthenticationToken;
+import org.yuelao.framework.starter.security.user.UserInfo;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
- * 密码验证支持
+ * Basic 密码认证
  */
-public class BasicPasswordAuthenticationProvider extends BasicAuthenticationProvider {
+public class BasicPasswordAuthenticationProvider extends AbstractBasicAuthenticationProvider {
 	
-
 	
-	/**
-	 * 认证业务逻辑处理
-	 *
-	 * @param authentication the authentication request object.
-	 * @return
-	 * @throws AuthenticationException
-	 */
 	@Override
 	public Authentication authenticate(Authentication authentication) throws AuthenticationException {
-		BasicPasswordAuthenticationToken authenticationToken = (BasicPasswordAuthenticationToken) authentication;
-		// 账号验证业务逻辑
-		// 正常返回的Details 不应该包含密码信息
-		UserDetails details = new User("张三", "", AuthorityUtils.createAuthorityList("ADMIN"));
+		BasicPasswordAuthenticationToken passwordAuthenticationToken = (BasicPasswordAuthenticationToken) authentication;
+		UserInfo userInfo = getUserService().loadUserByAccount(passwordAuthenticationToken.getName());
+		if(ObjectUtils.isEmpty(userInfo)){
+			throw new UsernameNotFoundException("账号信息不存在。");
+		}
 		
-		authenticationToken.eraseCredentials();
-		authenticationToken.setDetails(details);
+		if(!getPasswordEncoder().matches((CharSequence) passwordAuthenticationToken.getCredentials(), userInfo.getPassword())){
+			throw new BadCredentialsException("密码错误。");
+		}
+		
+		BasicPasswordAuthenticationToken authenticationToken = new BasicPasswordAuthenticationToken();
+		List<GrantedAuthority> authorities = userInfo.getAuthorities().stream().map(str -> new SimpleGrantedAuthority(str)).collect(Collectors.toList());
+		userInfo.setPassword(null);
+		authenticationToken.setAuthorities(authorities);
+		authenticationToken.setPrincipal(passwordAuthenticationToken.getPrincipal());
+		authenticationToken.setDetails(userInfo);
 		authenticationToken.setAuthenticated(true);
-		return authentication;
+		
+		
+		return authenticationToken;
 	}
 	
-	/**
-	 * 判断是否支持
-	 *
-	 * @param authentication
-	 * @return
-	 */
 	@Override
 	public boolean supports(Class<?> authentication) {
 		return authentication.isAssignableFrom(BasicPasswordAuthenticationToken.class);
