@@ -18,12 +18,14 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.yuelao.framework.oauth.authentication.converter.BasicPasswordAuthenticationConverter;
 import org.yuelao.framework.oauth.authentication.filter.AbstractAuthenticationFilter;
 import org.yuelao.framework.oauth.authentication.filter.BasicPasswordAuthenticationFilter;
+import org.yuelao.framework.starter.security.core.handler.AccessDeniedHandlerImpl;
+import org.yuelao.framework.starter.security.core.handler.AuthenticationEntryPointHandler;
 import org.yuelao.framework.oauth.authentication.properties.AuthenticationServerProperties;
 import org.yuelao.framework.oauth.authentication.provider.AbstractBasicAuthenticationProvider;
 import org.yuelao.framework.oauth.authentication.provider.BasicPasswordAuthenticationProvider;
+import org.yuelao.framework.oauth.upms.service.UserService;
 import org.yuelao.framework.starter.security.core.configurers.AbstractConfiguration;
 import org.yuelao.framework.starter.security.core.encoder.TokenEncoder;
-import org.yuelao.framework.oauth.upms.service.UserService;
 
 import java.util.List;
 import java.util.Map;
@@ -87,6 +89,18 @@ public class BasicAuthenticationServerConfiguration extends AbstractConfiguratio
 	 */
 	@Override
 	public void init(HttpSecurity httpSecurity) {
+		
+		try {
+			ApplicationContext context = httpSecurity.getSharedObject(ApplicationContext.class);
+			HttpMessageConverter httpMessageConverter = context.getBean(MappingJackson2HttpMessageConverter.class);
+			httpSecurity
+					.exceptionHandling()
+					.authenticationEntryPoint(new AuthenticationEntryPointHandler(httpMessageConverter))
+					.accessDeniedHandler(new AccessDeniedHandlerImpl(httpMessageConverter));
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+		
 		ApplicationContext context = httpSecurity.getSharedObject(ApplicationContext.class);
 		UserService userService = context.getBean(UserService.class);
 		PasswordEncoder passwordEncoder = context.getBean(PasswordEncoder.class);
